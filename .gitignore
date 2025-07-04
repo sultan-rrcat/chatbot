@@ -1,0 +1,10 @@
+models
+venv_310
+app/backend/rag_data
+app/backend/__pycache__
+app_kshitij/backend/chroma_db/
+app_kshitij/backend/data/
+app_kshitij/frontend/static/fonts
+app_rag/backend/__pycache__
+app_rag/backend/new_rag_data
+app_rag/backend/chroma_db

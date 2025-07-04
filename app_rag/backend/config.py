@@ -1,0 +1,1 @@
+EMBEDDER_MODEL_PATH = r"C:\Users\Administrator\Desktop\chatbot\backend\models\allminilm"
