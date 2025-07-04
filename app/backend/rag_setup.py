@@ -3,7 +3,6 @@ os.environ["CHROMA_TELEMETRY"] = "FALSE"
 import logging
 import config
 import json
-import shutil
 from langchain_community.document_loaders import DirectoryLoader, TextLoader, JSONLoader, PyPDFLoader
 from langchain_core.documents import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -12,8 +11,6 @@ from sentence_transformers import SentenceTransformer
 from chromadb.config import Settings
 from langchain_chroma import Chroma
 from langchain_community.embeddings import OllamaEmbeddings
-import chromadb
-import uuid
 
 config.setup_logging()
 logger = logging.getLogger(__name__)

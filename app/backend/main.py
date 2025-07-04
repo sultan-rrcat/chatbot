@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 logger.info("Logging started...")
 
 # llm = ChatOllama(model="tinyllama")
-llm_model = Llama(model_path=config.DEEPSEEK_MODEL_PATH, n_ctx=62000, verbose=False)
+llm_model = Llama(model_path=config.TINYLLAMA_MODEL_PATH, n_ctx=4096, verbose=False)
 
 def inference(user_prompt):
     output = llm_model(prompt=user_prompt, max_tokens=512, temperature=0.7, top_p=0.9)
@@ -29,10 +29,6 @@ def inference(user_prompt):
     return response_text
 
 if __name__ == "__main__":
-    # user_prompt = "What is Linear Betatron Motion?"
-    # user_prompt = "Tell me about INDUS2 Accelerator"
-    # user_prompt = "Best book for physics?"
-
     classifier_obj = IntentClassifier()
     rag_obj = RagSetup()
 
@@ -44,19 +40,14 @@ if __name__ == "__main__":
         result = classifier_obj.classify_query(user_prompt)
         print(result)
 
-        if result in ("INTENT1_REALTIME", "INTENT2_ANALYTICAL", "INTENT3_FAULTINFO"):
-            # nl2sql_obj = NL2SQL()
+        if result in ("INTENT1_REALTIME", "INTENT2_ANALYTICAL"):
+            print("Upcoming feature...")
+            pass
+        elif (result == "INTENT3_FAULTINFO"):
             try:
-                context, unique_sources  = rag_obj.retrieve_from_collection(config.DBSCHEMA_COLLECTION, user_prompt)
-            except Exception as e:
-                logger.error(f"Retrieval Error: {e}")
-                print("Could not retrieve context. Answering using general model.")
-                response_text = inference(user_prompt)
-                print(response_text)
-                continue
-            
-            prompt_template = ChatPromptTemplate.from_template(dedent("""
-                You are a SQL server query expert using the following context related to database schema generate a SQL query:
+                context, _ = rag_obj.retrieve_from_collection(config.FAULT_INFO_COLLECTION, user_prompt)
+                prompt_template = ChatPromptTemplate.from_template(dedent("""
+                You are a helpful assistant, use the following context to answer questions:
 
                 Context:
                 {context}
@@ -66,13 +57,11 @@ if __name__ == "__main__":
 
                 Answer:
             """))
-
-            formatted_prompt = prompt_template.format_messages(context = context, question = user_prompt)
-            print("Context: ", context)
-            print("Formatted Prompt: ", formatted_prompt)
-            # response_text = inference(formatted_prompt[0].content)
-            # print(response_text)
-            pass
+                formatted_prompt = prompt_template.format_messages(context = context, question = user_prompt)
+                response_text = inference(formatted_prompt[0].content)
+                print(response_text)
+            except Exception as e:
+                print(f"Error occured while fetching from RAG: {e}")
 
         elif result == "INTENT4_DOMAININFO":
             try:

@@ -2,21 +2,12 @@ import logging
 from llama_cpp import Llama
 from transformers import BertTokenizer, BertForSequenceClassification
 import torch
+import config
+import logging
 
-# MODEL_PATH = r"C:\Users\Administrator\Desktop\chatbot\backend\models\tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf"
-# MODEL_PATH = r"C:\Users\Administrator\Desktop\chatbot\backend\models\DeepSeek-R1-Distill-Llama-8B-Q2_K.gguf"
-# MODEL_PATH = r"C:\Users\Administrator\Desktop\chatbot\backend\models\Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf"
-EMBEDDER_MODEL_PATH = r"C:\Users\Administrator\Desktop\chatbot\backend\models\allminilm"
-INTENT_CLASSIFIER_MODEL = r"C:\Users\Administrator\Desktop\chatbot\backend\models\intent_classifier_model"
-
-logging.basicConfig(
-        level=logging.DEBUG,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        filename=r'C:\Users\Administrator\Desktop\chatbot\backend\codes\logs\intent_classifier.log',
-        filemode='a'  # Append to the log file if it exists
-    )
-
-logging.info("Logging Enabled...")
+config.setup_logging()
+logger = logging.getLogger(__name__)
+logger.info("Logging started...")
 
 CLASS_LABELS = {
     0: "INTENT1_REALTIME",
@@ -31,7 +22,7 @@ CLASS_LABELS = {
 #     return model
 
 class IntentClassifier():
-    def __init__(self, model_path=INTENT_CLASSIFIER_MODEL, num_labels=5):
+    def __init__(self, model_path=config.INTENT_CLASSIFIER_MODEL, num_labels=5):
         self.tokenizer = BertTokenizer.from_pretrained(model_path)
         self.classifier_model = BertForSequenceClassification.from_pretrained(model_path, num_labels=num_labels)
         self.classifier_model.eval()
