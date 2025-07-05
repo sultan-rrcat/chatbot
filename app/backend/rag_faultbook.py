@@ -13,22 +13,28 @@ import config
 # -----------------------------
 # 1️⃣ Connect to SQL Server using SQLAlchemy with Trusted Connection
 
-SERVER = 'DESKTOP-FG7N2DC\\SQLEXPRESS'
-DATABASE = 'flogbook'
+# SERVER = config.SERVER
+# DATABASE = config.DATABASE
 
-params = urllib.parse.quote_plus(
-    f"DRIVER={{ODBC Driver 17 for SQL Server}};"
-    f"SERVER={SERVER};"
-    f"DATABASE={DATABASE};"
-    f"Trusted_Connection=yes;"
-)
-engine = create_engine(f'mssql+pyodbc:///?odbc_connect={params}')
+# params = urllib.parse.quote_plus(
+#     f"DRIVER={{ODBC Driver 17 for SQL Server}};"
+#     f"SERVER={SERVER};"
+#     f"DATABASE={DATABASE};"
+#     f"Trusted_Connection=yes;"
+# )
+# engine = create_engine(f'mssql+pyodbc:///?odbc_connect={params}')
+
+engine = create_engine(config.CONNECTION_STRING)
 
 # -----------------------------
 # 2️⃣ Fetch data from fault_bookv3
 
-query = 'SELECT * FROM fault_bookv3'
+query = 'SELECT * FROM fault_bookv3 where fault_id<4000;'
 df = pd.read_sql(query, engine)
+# df = pd.read_sql_query(query, engine)
+with open('faultbook_data.csv', 'w', encoding='utf-8') as f:
+    df.to_csv(f, index=False)
+print(df.head(3))
 
 # -----------------------------
 # 3️⃣ Data Preprocessing
@@ -132,6 +138,10 @@ if __name__ == "__main__":
 
     persist_dir = "chroma_db"
     collection_name = "FAULT_INFO_COLLECTION"
+
+    with open('faultbook_data.csv', 'r', encoding='utf-8') as f:
+        df = pd.read_csv(f) 
+    # df.fillna('N/A', inplace=True)
 
     ingestor = FaultbookIngestor(df, persist_directory=persist_dir, collection_name=collection_name)
     vectorstore = ingestor.ingest_to_chroma()
