@@ -148,9 +148,9 @@ def initialize_services():
     global llm_model, classifier_obj, rag_obj
     logger.info("Initializing services...")
     try:
-        llm_model = Llama(model_path=config.LLAMA31_MODEL_PATH, n_ctx=60000, verbose=False, n_gpu_layers=1000)
+        llm_model = Llama(model_path=config.PHI3_MODEL_PATH, n_ctx=8096, verbose=False, n_gpu_layers=1000)
         classifier_obj = IntentClassifier()
-        rag_obj = RagSetup()
+        rag_obj = RagSetup()   
         logger.info("All services initialized successfully!")
     except Exception as e:
         logger.critical(f"CRITICAL ERROR during initialization: {e}", exc_info=True)

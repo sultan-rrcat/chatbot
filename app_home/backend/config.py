@@ -18,6 +18,7 @@ EMBEDDER_MODEL_PATH = r"C:\Users\offic\Documents\chatbot\models\embedding\bge-en
 INTENT_CLASSIFIER_MODEL = r"C:\Users\offic\Documents\chatbot\models\intent_classifier\intent_classifier_model"
 DEEPSEEK_MODEL_PATH = r"C:\Users\offic\Documents\chatbot\models\llms\DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf"
 LLAMA31_MODEL_PATH = r"C:\Users\offic\Documents\chatbot\models\llms\Hermes-3-Llama-3.1-8B.Q4_K_M.gguf"
+PHI3_MODEL_PATH = r"C:\Users\offic\Documents\chatbot\models\llms\Phi-3-mini-4k-instruct-q4.gguf"
 
 CLASS_LABELS = {
     0: "INTENT1_REALTIME",

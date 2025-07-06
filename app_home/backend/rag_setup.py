@@ -191,7 +191,7 @@ class RagSetup:
             embedding_function=self.embedding_model,
             persist_directory="chroma_db",
             client_settings=self.client_settings
-        )
+        )   
 
         # It's better to check if the collection actually exists before trying to get its documents
         # The LangChain Chroma wrapper doesn't have a direct "collection exists" method easily accessible,
