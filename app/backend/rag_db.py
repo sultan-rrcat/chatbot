@@ -190,8 +190,7 @@ Beam Affected: {row['beam_affected']}
         """
         print("\n--- Starting Faultbook Data Ingestion Pipeline ---")
         try:
-            # self._fetch_data_from_sql()
-            
+            self._fetch_data_from_sql()
             # Save to CSV after fetching and before preprocessing, if desired for debugging
             with open(os.path.join(config.FAULT_DOC_DIR,"faultbook_data.csv"), 'r', encoding='utf-8') as f:
                 self.df = pd.read_csv(f)
@@ -214,7 +213,7 @@ if __name__ == "__main__":
     config.setup_logging()
 
     # Define persistence settings for Chroma
-    persist_dir = "chroma_db"
+    persist_dir = config.CHROMA_DB_DIR
     collection_name = config.FAULT_INFO_COLLECTION
 
     # Define database connection string and query

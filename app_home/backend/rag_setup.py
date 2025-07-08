@@ -30,7 +30,7 @@ class RagSetup:
 
         self.client_settings = Settings(
             is_persistent = True,
-            persist_directory = "chroma_db",
+            persist_directory = config.CHROMA_DB_DIR,
             anonymized_telemetry = False
         )
         # Initialize the ChromaDB persistent client here
@@ -157,7 +157,7 @@ class RagSetup:
         client_collection = Chroma(
             collection_name=collection_name,
             embedding_function=self.embedding_model,
-            persist_directory="chroma_db",
+            persist_directory=config.CHROMA_DB_DIR,
             client_settings=self.client_settings # Pass the same client settings
         )
 
@@ -189,7 +189,7 @@ class RagSetup:
         client_collection = Chroma(
             collection_name=collection_name,
             embedding_function=self.embedding_model,
-            persist_directory="chroma_db",
+            persist_directory=config.CHROMA_DB_DIR,
             client_settings=self.client_settings
         )   
 

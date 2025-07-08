@@ -1,6 +1,7 @@
 models
 venv_310
 data
+chroma_db 
 app/frontend/static/fonts
 app/backend/chroma_db
 app/backend/rag_data

@@ -3,15 +3,18 @@ import os
 
 ACC_PY_DOC_DIR = r"C:\Users\Administrator\Documents\chatbot\app\backend\rag_data\acc_py_docs"
 DB_SCHEMA_DOC_DIR = r"C:\Users\Administrator\Documents\chatbot\app\backend\rag_data\db_schema_docs"
+FAULT_DOC_DIR = r"C:\Users\Administrator\Documents\chatbot\app\backend\rag_data\fault_docs"
 
 CHUNK_SIZE = 500
 CHUNK_OVERLAP = 100
 
-DOMAININFO_COLLECTION = "ACC_PY_DOCS"
-DBSCHEMA_COLLECTION = "DB_SCHEMA_DOCS"
+DOMAININFO_COLLECTION = "DOMAININFO_COLLECTION"
+DBSCHEMA_COLLECTION = "DBSCHEMA_COLLECTION"
 FAULT_INFO_COLLECTION = "FAULT_INFO_COLLECTION"
 
 LOG_DIRECTORY = r'C:\Users\Administrator\Documents\chatbot\app\backend\logs\app.log'
+
+CHROMA_DB_DIR = r"C:\Users\Administrator\Documents\chatbot\app\backend\chroma_db"
 
 EMBEDDER_MODEL_PATH = r"C:\Users\Administrator\Documents\chatbot\models\embedders\allminilm"
 INTENT_CLASSIFIER_MODEL = r"C:\Users\Administrator\Documents\chatbot\models\intent_classifier_model"
@@ -46,11 +49,12 @@ def setup_logging():
 SERVER = 'DESKTOP-FG7N2DC\\SQLEXPRESS'
 DATABASE = 'flogbook'
 
-CONNECTION_STRING = f"""
-DRIVER={{SQL Server}};
-SERVER={SERVER};
-DATABASE={DATABASE};
-Trusted_Connection=yes
-"""
+PYODBC_CONNECTION_STRING = f"mssql+pyodbc://{SERVER}/{DATABASE}?driver=ODBC+Driver+17+for+SQL+Server&trusted_connection=yes"
 
-db_uri = f"mssql+pyodbc://{SERVER}/{DATABASE}?driver=ODBC+Driver+17+for+SQL+Server&trusted_connection=yes"
+SQLALCHEMY_CONNECTION_STRING = (
+    f"mssql+pyodbc://@{SERVER}/{DATABASE}"
+    "?driver=ODBC+Driver+17+for+SQL+Server&trusted_connection=yes"
+)
+
+FLASK_APP_STATIC_FOLDER = r"C:\Users\Administrator\Documents\chatbot\app\frontend\static"
+FLASK_APP_TEMPLATE_FOLDER = r"C:\Users\Administrator\Documents\chatbot\app\frontend\templates"

@@ -581,3 +581,14 @@
         }
 
 /* Add more weights as needed */
+.source-container {
+    margin-top: 10px;
+    font-size: 0.85em;
+    color: var(--text-subtle);
+    border-top: 1px solid #ccc;
+    padding-top: 5px;
+}
+
+.source-line {
+    margin-top: 4px;
+}
