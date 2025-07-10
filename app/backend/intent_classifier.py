@@ -7,19 +7,8 @@ import logging
 
 config.setup_logging()
 logger = logging.getLogger(__name__)
-logger.info("Logging started...")
 
-CLASS_LABELS = {
-    0: "INTENT1_REALTIME",
-    1: "INTENT2_ANALYTICAL",
-    2: "INTENT3_FAULTINFO",
-    3: "INTENT4_DOMAININFO",
-    4: "INTENT5_GENERALINFO"
-}
-
-# def load_model(model_path):
-#     model = Llama(model_path=model_path, n_ctx=4048, verbose=False)
-#     return model
+CLASS_LABELS = config.CLASS_LABELS
 
 class IntentClassifier():
     def __init__(self, model_path=config.INTENT_CLASSIFIER_MODEL, num_labels=5):
@@ -57,41 +46,23 @@ class IntentClassifier():
     def classify_query(self, query):
         rule_label = self.rule_based_classification(query)
         classifier_label, classifier_confidence = self.transformer_based_classification(query)
-        logging.info(f"Rule Label={rule_label}\nClassifier Label={classifier_label} with confidence score={classifier_confidence}")
+        
+        logging.info(
+            f"\n🔍 **Query Classification Summary**"
+            f"\n➡️ Query: {query}"
+            f"\n🪄 Rule-Based Label: {rule_label}"
+            f"\n🤖 Transformer Label: {classifier_label}"
+            f"\n📈 Confidence: {classifier_confidence:.2f}"
+        )
+        
         if classifier_confidence > 0.7:
             return classifier_label
-        elif rule_label==classifier_label:
+        elif rule_label == classifier_label:
             return rule_label
-        elif (rule_label!=classifier_label) and (classifier_confidence>0.5):
+        elif (rule_label != classifier_label) and (classifier_confidence > 0.5):
             return classifier_label
         else:
             return "Uncertain"
-    #LLM based approach
-    '''
-
-    prompt = (
-        "Context: You are a strict classifier for a chatbot router.\n"
-        "You must classify the below Query into exactly one of the following categories:\n"
-        "- general_query\n"
-        "- search_in_db\n"
-        "- fault_related\n\n"
-        "Respond with ONLY one of these labels. Do NOT explain your answer.\n\n"
-        f"Query: {query}\nCategory:"
-    )
-
-    output = llm(prompt=prompt, temperature = 0.0)
-    if isinstance(output, dict) and "choices" in output:
-        result = output["choices"][0]["text"]
-    else :
-        result = output
-
-    VALID_CATEGORIES = {"general_query", "accelerator_data(SQL)", "fault_related(RAG)"}
-    # if result not in VALID_CATEGORIES:
-    #     logging.warning(f"Invalid classification result: '{result}' for query: '{query}'")
-    #     return "unknown"
-    
-    return result.strip().lower() #used to remove leading and trailing spaces
-    '''
 
 if __name__ == "__main__":
     '''

@@ -1,3 +1,0 @@
-remove chrome profile
-remove cdtrainee credential from wherever available
-remove authorization from git(or uninstall git)

@@ -19,8 +19,6 @@ logger.info("rag setup logging enabled...")
 
 class RagSetup:
     def __init__(self):
-        print("object initilization...")
-        logger.info("object initialization...")
         self.embedding_model = HuggingFaceEmbeddings(
             model_name = config.EMBEDDER_MODEL_PATH,  
             model_kwargs={
@@ -37,8 +35,8 @@ class RagSetup:
         # This client is used for direct ChromaDB operations like deleting collections
         self.chroma_client = chromadb.PersistentClient(path=self.client_settings.persist_directory, settings=self.client_settings)
         
-        print("embedding model and chroma client initialized...")
-        logger.info("embedding model and chroma client initialized...")
+        # print("embedding model and chroma client initialized...")
+        # logger.info("embedding model and chroma client initialized...")
 
 
     def document_loader(self, data_directory):

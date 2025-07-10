@@ -7,6 +7,8 @@ from langchain_core.documents import Document
 import config
 import pyodbc # pyodbc is imported but not directly used by SQLAlchemy, it's the underlying driver
 import os
+import chromadb
+from chromadb.config import Settings
 
 # It's good practice to print available drivers for debugging connection issues
 print(pyodbc.drivers())
@@ -34,16 +36,22 @@ class FaultbookIngestor:
         self.collection_name = collection_name
         self.df = None  # DataFrame will be loaded and preprocessed here
         self.documents = []
+        self.client_settings = Settings(
+            is_persistent = True,
+            persist_directory = config.CHROMA_DB_DIR,
+            anonymized_telemetry = False
+        )
+        self.chroma_client = chromadb.PersistentClient(path=self.client_settings.persist_directory, settings=self.client_settings)
 
         # Initialize HuggingFace embeddings model
         # The 'local_files_only' flag ensures the model is loaded from cache/local path
         # If the model is not found locally, you might need to temporarily remove
         # 'model_kwargs={"local_files_only": True}' for the first run to allow download.
         self.embeddings = HuggingFaceEmbeddings(
-            model_name=config.EMBEDDER_MODEL_PATH,
-            model_kwargs={"local_files_only": True}
+            model_name=config.NOMIC_EMBED_TEXT_V1_EMBEDDER_MODEL_PATH,
+            model_kwargs={"local_files_only": True, "trust_remote_code":True}
         )
-        print(f"✅ Embeddings model loaded: {config.EMBEDDER_MODEL_PATH}")
+        print(f"✅ Embeddings model loaded: {config.NOMIC_EMBED_TEXT_V1_EMBEDDER_MODEL_PATH}")
 
     def _fetch_data_from_sql(self):
         """
@@ -59,6 +67,7 @@ class FaultbookIngestor:
             print(self.df.head(3)) # Print head for verification
             file_path = os.path.join(config.FAULT_DOC_DIR, "faultbook_data.csv")
             self.df.to_csv(file_path, index=False, encoding='utf-8')
+            print(f"✅ Data saved successfully in the directory: {file_path}.")
         except Exception as e:
             print(f"❌ Error fetching data from SQL Server: {e}")
             raise # Re-raise the exception to stop the pipeline if data fetching fails
@@ -162,6 +171,15 @@ Beam Affected: {row['beam_affected']}
         Ingests the prepared documents into the Chroma vector store.
         If documents are not yet prepared, it calls prepare_documents first.
         """
+        try:
+            collection = self.chroma_client.get_or_create_collection(name=self.collection_name)
+            self.chroma_client.delete_collection(name=self.collection_name)
+            print(f"Cleared existing collection: {self.collection_name}")
+        except Exception as e:
+            print(f"Collection '{self.collection_name}' does not exist or error deleting (likely harmless if creating first time): {e}")
+
+        # del self.chroma_client
+
         if not self.documents:
             self.prepare_documents()
 
@@ -174,7 +192,8 @@ Beam Affected: {row['beam_affected']}
             documents=self.documents,
             embedding=self.embeddings,
             persist_directory=self.persist_directory,
-            collection_name=self.collection_name
+            collection_name=self.collection_name,
+            client_settings=self.client_settings
         )
         print(f"✅ Chroma vector store created and persisted at: {self.persist_directory}")
         print(f"✅ Collection name used: {self.collection_name}")
@@ -190,8 +209,7 @@ Beam Affected: {row['beam_affected']}
         """
         print("\n--- Starting Faultbook Data Ingestion Pipeline ---")
         try:
-            self._fetch_data_from_sql()
-            # Save to CSV after fetching and before preprocessing, if desired for debugging
+            # self._fetch_data_from_sql()
             with open(os.path.join(config.FAULT_DOC_DIR,"faultbook_data.csv"), 'r', encoding='utf-8') as f:
                 self.df = pd.read_csv(f)
             print("Data loaded from faultbook_data.csv")
@@ -219,7 +237,7 @@ if __name__ == "__main__":
     # Define database connection string and query
     print(f"CONNECTION_STRING: {config.SQLALCHEMY_CONNECTION_STRING}")
     engine = create_engine(config.SQLALCHEMY_CONNECTION_STRING)
-    query = 'SELECT * FROM fault_bookv3 where fault_id<4000;'
+    query = 'select * from fault_bookv3 where fault_id > 2000 order by fault_id desc;'
 
     # Instantiate the FaultbookIngestor
     ingestor = FaultbookIngestor(
