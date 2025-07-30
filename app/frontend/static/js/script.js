@@ -23,6 +23,21 @@ function toggleTheme() {
     currentTheme = currentTheme === 'light' ? 'dark' : 'light';
     document.documentElement.setAttribute('data-theme', currentTheme);
     localStorage.setItem('theme', currentTheme);
+    const icon = document.getElementById("header-icon")
+    const light_themeIcon = document.getElementById("light-themeIcon")
+    const dark_themeIcon = document.getElementById("dark-themeIcon")
+    const send_icon = document.getElementById("send-icon")
+    if(currentTheme=='light'){
+        light_themeIcon.src = "/static/icons/light.svg"
+        dark_themeIcon.src = "/static/icons/dark-mode.svg"
+        icon.src = "/static/icons/logo-bg-removed.png"
+        send_icon.src = "/static/icons/send-dark.svg"
+    }else{
+        light_themeIcon.src = "/static/icons/light-light.svg"
+        dark_themeIcon.src = "/static/icons/dark-dark.svg"
+        icon.src = "/static/icons/logo-dark-removebg-preview-cp.png"
+        send_icon.src = "/static/icons/send-light.svg"
+    }
 }
 
 // Auto-resize textarea
@@ -179,6 +194,15 @@ async function sendMessage() {
                         // currentBotMessageDiv.innerHTML = formatMarkdown(streamedContent);
                     }
 
+                    if (parsedData.sql_query) {
+                        console.log("Appending SQL Query:", parsedData.sql_query);
+                        const sqlContainer = document.createElement('div');
+                        sqlContainer.classList.add('sql-query-container');
+                        sqlContainer.innerHTML = `<strong>Generated SQL Query:</strong><pre>${parsedData.sql_query}</pre>`;
+
+                        currentBotMessageDiv.appendChild(sqlContainer);
+                    }
+
                     if (parsedData.sources && !sourcesAdded) {
                         console.log("Appending sources:", parsedData.sources);
                         const sourcesHtml = parsedData.sources.map(src => `<div class="source-line">${src}</div>`).join('');
@@ -254,6 +278,18 @@ window.onerror = function (message, source, lineno, colno, error) {
             user_agent: navigator.userAgent
         })
     });
+};
+
+
+window.addEventListener("beforeunload", () => {
+  navigator.sendBeacon('/end_session');
+});
+
+window.onload = () => {
+    fetch('/start_session', { method: 'GET' })
+      .then(res => res.json())
+      .then(data => console.log('Session started:', data))
+      .catch(console.error);
 };
 
 // Capture unhandled promise rejections
