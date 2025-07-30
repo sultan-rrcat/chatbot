@@ -13,8 +13,10 @@
     <div class="app-container">
         <header class="header">
             <div class="header-title">
-                <div class="header-icon">Φ</div>
-                <h1>Accelerator Physics RAG System</h1>
+                <div class="header-icon">
+                    <img id="header-icon" src="\static\icons\logo-bg-removed.png" alt="">
+                </div>
+                <h1>INDUS Faultbook Assistant</h1>
             </div>
             <div class="status-indicator">
                 <div class="network-status">
@@ -22,9 +24,13 @@
                     <span>Secure Network • Research Mode</span>
                 </div>
                 <div class="theme-toggle" onclick="toggleTheme()">
-                    <span class="theme-icon">🌙</span>
+                    <span class="theme-icon">
+                        <img id="light-themeIcon" src="/static/icons/light.svg" alt="">
+                    </span>
                     <div class="theme-toggle-switch"></div>
-                    <span class="theme-icon">☀️</span>
+                    <span class="theme-icon">
+                        <img id="dark-themeIcon" src="/static/icons/dark-mode.svg" alt="">
+                    </span>
                 </div>
             </div>
         </header>
@@ -32,8 +38,8 @@
         <div class="chat-container">
             <div id="chat-messages" class="chat-messages">
                 <div class="message-bubble bot-message welcome-message">
-                    <strong>Welcome to the Accelerator Physics Research Assistant</strong><br><br>
-                    I'm your specialized RAG chatbot with access to curated accelerator physics research papers and documentation. Ask me about beam dynamics, RF systems, magnetic lattices, or any technical questions related to your research.
+                    <strong>Welcome to the INDUS Accelerator Control Chatbot Assistant</strong><br><br>
+                    I am your specialized assistant designed to support INDUS accelerator operations, fault diagnostics, SQL-based data queries, and advanced technical Q&A. I can help you analyze system logs, fetch and summarize database insights, interpret research documents, and answer your accelerator physics and engineering questions effectively.
                 </div>
             </div>
 
@@ -47,12 +53,12 @@
                     <div class="input-wrapper">
                         <textarea 
                             id="user-input" 
-                            placeholder="Enter your accelerator physics question..." 
+                            placeholder="Enter your prompt ..." 
                             rows="1"
                         ></textarea>
                     </div>
                     <button id="send-button">
-                        <img src="{{ url_for('static', filename='icons/send.svg') }}"
+                        <img id="send-icon" src="/static/icons/send-dark.svg" alt="">
                     </button>
                 </div>
             </div>
