@@ -4,7 +4,7 @@ import os
 import json
 import pandas as pd
 import numbers
-from flask import Flask, request, Response, render_template, jsonify, session
+from flask import Flask, request, Response, render_template, jsonify, session, send_file
 from textwrap import dedent
 import time
 import psutil
@@ -67,6 +67,183 @@ def ensure_message_alternation(messages):
     return cleaned_messages
 
 
+def get_history_from_db(session_id, limit=10):
+    if not session_id:
+        return []
+    query = text("""
+                SELECT user_prompt, chatbot_response
+                FROM messages
+                WHERE session_id = :session_id
+                ORDER BY turn_number DESC
+                OFFSET 0 ROWS FETCH NEXT :limit ROWS ONLY
+                 """)
+    
+    connection = engine.connect()
+    try:
+        results = connection.execute(query, {"session_id":session_id, "limit":limit}).fetchall()
+        history = []
+
+        for row in reversed(results):
+            if row.user_prompt:
+                history.append({"role":"user","content": row.user_prompt})
+            if row.chatbot_response:
+                history.append({"role":"user","content": row.chatbot_response})
+
+        logger.info(f"Reconstructed history with {len(history)} messages for session_id: {session_id}")
+        return history
+    except Exception as e:
+        logger.error(f"Could not retrieve history from DB for session {session_id}: {e}")
+        return []
+    finally:
+        connection.close()
+
+def clean_rewritten_query(query: str) -> str:
+    return query.strip().strip('"').strip("'").replace('</s>', '').strip()
+
+def rewrite_query_with_history(model, tokenizer, history, new_query):
+    if not history:
+        return new_query
+    
+    history_str = "\n".join([f"{msg['role']}: {msg['content']}" for msg in history])
+    
+    system_prompt = dedent("""
+    You are an expert query rewriter. Your task is to take a conversation history and a new, potentially ambiguous user question, and rewrite it into a single, clear, and self-contained question. The rewritten question should be understandable without the conversation history.
+
+    **CRITICAL RULES:**
+    1.  **DO NOT answer the question.** Your only output should be the rewritten, standalone question.
+    2.  If the new question is already self-contained or understandable, simply return it as is.
+
+    **Example 1:**
+    ---
+    **History:**
+    user: How many faults were there in the RF system last week?
+    assistant: There were 15 faults in the RF system.
+    **New Question:** "what about for the vacuum system?"
+    ---
+    **Your Output:** "How many faults were there in the vacuum system last week?"
+
+    **Example 2:**
+    ---
+    **History:**
+    user: list the top 5 issues logged by ashish
+    assistant: Here are the top 5 issues...
+    **New Question:** "show me the ones by bhavba instead"
+    ---
+    **Your Output:** "list the top 5 issues logged by bhavba"
+                           
+    **Example 3:**
+    ---
+    **History:** 
+    **New Question:** "quiz me about accelerator physics"
+    ---
+    **Your Output:** "Quiz me about accelerator physics"
+                           
+    **Example 4:**
+    ---
+    **History:** 
+    **New Question:** "DBMS interview question"
+    ---
+    **Your Output:** "DBMS interview questions"
+    """)
+
+    prompt = f"{system_prompt}\n\n**History:**\n{history_str}\n\n**New Question:** \"{new_query}\"\n\n**Your Output:**"
+    try:
+        device = next(model.parameters()).device
+        inputs = tokenizer(prompt, return_tensors="pt").to(device)
+
+        outputs = model.generate(
+            **inputs,
+            max_new_tokens=256,
+            temperature = 0.1,
+            do_sample = False,
+            pad_token_id = tokenizer.eos_token_id
+        )
+
+        rewritten_query = tokenizer.decode(outputs[0][inputs['input_ids'].shape[1]:], skip_special_token = True).strip()
+        rewritten_query = clean_rewritten_query(rewritten_query)
+        logger.info(f"Original Query: '{new_query}' -> Rewritten Query: '{rewritten_query}'")
+        return rewritten_query
+    except Exception as e:
+        logger.error(f"Error during query rewriting: {e}")
+        return new_query # Fallback to the original query on error
+
+def store_chats_in_db(session_id, user_message, rewritten_user_message, intent_result, chatbot_response, sql_query_to_send, context, sources_data):
+    connection = engine.connect()
+    try:
+        row = connection.execute(text("SELECT MAX(turn_number) from messages where session_id = :session_id"), {"session_id": session_id}).fetchone()
+        current_turn_val = row[0] if row and row[0] is not None else 0
+        next_turn = current_turn_val + 1
+        connection.commit()
+    except Exception as e:
+        logger.error(f"Error fetching turn number from database: {e}")
+    finally:
+        connection.close()
+
+    timestamp = datetime.now()
+    classified_intent = intent_result["classified_intent"]
+    mistral_intent = intent_result["mistral_intent"]
+    tinyllama_intent = intent_result["tinyllama_intent"]
+    bert_intent = intent_result["bert_intent"]
+    generated_sql = sql_query_to_send if sql_query_to_send else None
+    rag_chunks = context if context else None
+    sources_data_json = json.dumps(sources_data)
+
+    
+    insert_sql = text("""
+    INSERT INTO messages (
+        session_id,
+        turn_number,
+        timestamp,
+        user_prompt,
+        rewritten_user_prompt,
+        classified_intent,
+        mistral_intent,
+        tinyllama_intent,
+        bert_intent,
+        chatbot_response,
+        generated_sql,
+        unique_sources,
+        rag_chunks
+    )
+    VALUES (
+        :session_id,
+        :turn_number,
+        :timestamp,
+        :user_prompt,
+        :rewritten_user_prompt,
+        :classified_intent,
+        :mistral_intent,
+        :tinyllama_intent,
+        :bert_intent,
+        :chatbot_response,
+        :generated_sql,
+        :unique_sources,
+        :rag_chunks
+    )
+""")
+    connection = engine.connect()
+    try:
+        connection.execute(insert_sql, {
+            "session_id": session_id,
+            "turn_number": next_turn,
+            "timestamp": timestamp,
+            "user_prompt": user_message,
+            "rewritten_user_prompt": rewritten_user_message,
+            "classified_intent": classified_intent,
+            "mistral_intent": mistral_intent,
+            "tinyllama_intent": tinyllama_intent,
+            "bert_intent": bert_intent,
+            "chatbot_response": chatbot_response,
+            "generated_sql": generated_sql,
+            "unique_sources": sources_data_json,
+            "rag_chunks": rag_chunks
+        })
+        connection.commit()
+    except Exception as e:
+        logger.info(f"Error executing query: {e}")
+    finally:
+        connection.close()
+
 # --- Inference Logic ---
 def stream_inference_generator(messages):
     """
@@ -98,9 +275,8 @@ def stream_inference_generator(messages):
             streamer=streamer,
             max_new_tokens=1024,
             do_sample=True,
-            temperature=1,
-            top_p=0.9,
-            top_k=50
+            temperature=0.9,
+            top_p=0.95
         )
 
         current_process.cpu_percent(interval=None)
@@ -161,9 +337,16 @@ def stream_chat():
 
     user_message = date_parser.normalize_dates_in_text(user_message)
     session_id = session.get('session_id')
-    def generate_response(session_id = session_id):
+    conversation_history = get_history_from_db(session_id)
+
+    def generate_response(session_id, conversation_history):
+        rewritten_user_message = rewrite_query_with_history(mistral_base_model, mistral_tokenizer, conversation_history, user_message)
+        conversation_history.append({"role": "user", "content": user_message})
+
+        yield f"data: {json.dumps({'pipeline_step': 'Analyzing your request...'})}\n\n"
+
         # 1. Classify Intent
-        intent_result = classifier_obj.classify_query(user_message)
+        intent_result = classifier_obj.classify_query(rewritten_user_message)
         intent = intent_result['classified_intent']
 
         context = ""
@@ -176,8 +359,9 @@ def stream_chat():
 
         # 2. Handle different intents
         if intent in (config.CLASS_LABELS[0]):
-            # db = nl2sql_obj.connect_db(config.PYODBC_CONNECTION_STRING)
-            sql_text = nl2sql_obj.generate_query_using_llm(user_message)
+            # yield f"data: {json.dumps({'pipeline_step': 'Translating to SQL query...'})}\n\n"
+            yield f"data: {json.dumps({'pipeline_step': 'Searching the database...'})}\n\n"
+            sql_text = nl2sql_obj.generate_query_using_llm(rewritten_user_message)
 
             if sql_text:
                 clean_sql = nl2sql_obj.extract_sql(sql_text)
@@ -195,7 +379,8 @@ def stream_chat():
                                 value = df.iloc[0,0]
                                 return isinstance(value, numbers.Number) and value ==0
                             return False
-
+                        
+                        yield f"data: {json.dumps({'pipeline_step': 'Summarizing results...'})}\n\n"
                         if num_rows == 0 or (num_rows == 1 and is_zero_count_result(df_result)):
                             logger.info("No data found prompting...")
                             # No data found — update system prompt accordingly
@@ -225,7 +410,7 @@ You have just run a search in the database based on the user's request, but it r
                             messages.append({"role": "system", "content": system_prompt})
                             messages.append({
                                 "role": "user",
-                                "content": f"Based on my user prompt, you found no results. Now, guide me to a solution.\n\nUser Prompt: {user_message}"
+                                "content": f"Based on my user prompt, you found no results. Now, guide me to a solution.\n\nUser Prompt: {rewritten_user_message}"
                             })
                         else:
                             cols_to_check = ["fault_description", "first_observation", "action_taken"]
@@ -234,24 +419,36 @@ You have just run a search in the database based on the user's request, but it r
                             else:
                                 preview_rows = df_result
 
-                            system_prompt = (
-                                "You are a helpful assistant skilled at summarizing database results. "
-                                "Provide a clear, concise natural language summary of the data returned. "
-                                "If results are too many, summarize trends; if few, highlight specifics."
-                            )
+                            system_prompt = dedent("""
+                    You are an expert data analyst assistant AI chatbot. You have just successfully retrieved data from the system's database to answer the user's request.
+
+                    **Your Task:**
+                    Your goal is to translate this raw data into a clear, concise, and natural-sounding summary. You must sound like an expert, not a program reading a table.
+
+                    **CRITICAL INSTRUCTIONS:**
+                    1.  **Take Ownership & Speak Directly:** Answer the user's question directly. Do NOT mention the database, SQL, or that you are "looking at data." The information is your knowledge.
+                    2.  **Synthesize, Don't Just List:** Do not just read out the rows. Weave the key information into a helpful summary.
+                        * If there are many results (e.g., more than 5), identify and describe the main trends or patterns.
+                        * If there are only a few results, highlight the most important specifics of each one.
+                    3.  **Use Human-Readable Formatting:** This is crucial for a good user experience.
+                        * Format durations naturally (e.g., say **"5 minutes"** instead of "0 hours 5 minutes," and **"1 hour"** instead of "1 hours 0 minutes").
+                        * Format dates conversationally (e.g., **"on May 29th, 2025"**).
+                    4.  **Focus on the User's Goal:** Look at the user's original prompt to understand what they wanted and tailor your summary to directly answer it.
+                    """)
+                    
                             messages.append({"role": "system", "content": system_prompt})
                             messages.append({
                                 "role": "user",
-                                "content": f"User prompt: {user_message}\nGenerated SQL: {clean_sql}\nTotal rows fetched: {num_rows}\nTop rows(for preview):\n{preview_rows}\n\nPlease summarize the result."
+                                "content": f"Here is the user's request and the data you retrieved. Please summarize the data according to your instructions.\n\nUser's Request: {rewritten_user_message}\n\nData:\n{preview_rows.to_string()}"
                             })
 
                     except Exception as e:
-                        error_msg = f"There was an error executing your query: {str(e)}"
+                        error_msg = f"There was an error while searching in SQL database, switching to search on vector database.\n\n"
                         logger.error(error_msg)
                         yield f"data: {json.dumps({'chunk': error_msg})}\n\n"
-                        yield f"data: {json.dumps({'chunk': 'Would you like to rephrase your question or try a different query?'})}\n\n"
                         yield f"data: {json.dumps({'status': 'DONE'})}\n\n"
-                        return
+                        intent = config.CLASS_LABELS[1]
+                        # return
                 else:
                     intent = config.CLASS_LABELS[1]
             else:
@@ -259,26 +456,31 @@ You have just run a search in the database based on the user's request, but it r
 
         if intent == config.CLASS_LABELS[1]:
             try:
-                logger.info("Using RAG")
-                context, _ = rag_obj.retrieve_from_collection(config.FAULT_INFO_COLLECTION, user_message)
+                yield f"data: {json.dumps({'pipeline_step': 'Searching Fault-Info knowledge base...'})}\n\n"
+                context, unique_sources = rag_obj.retrieve_from_collection(config.FAULT_INFO_COLLECTION, rewritten_user_message)
                 
                 system_prompt = dedent("""
-You are a specialized AI assistant for the Accelerator Control System, with deep expertise in diagnosing and resolving system faults. Your role is to provide clear, direct, and actionable answers to operators and engineers.
+You are a specialized AI assistant for the Accelerator Control System, with deep expertise in diagnosing and resolving system faults. Your knowledge is built from extensive operational history and technical resolutions applied in similar past scenarios.
 
-**Your Task:**
-1.  **Synthesize, Don't State:** Analyze the technical data provided below to construct a comprehensive response. Connect different pieces of information to give the user a complete picture.
-2.  **Speak as the Expert:** Answer confidently and directly, as if this information is your own knowledge.
-3.  **CRITICAL:** **Do not mention the context.** Avoid phrases like "Based on the provided context," "According to the information," or anything similar. Just answer the question.
-4.  **If Information is Missing:** If the data is insufficient to answer the question, simply state that you don't have enough specific information on that issue and, if possible, suggest what kind of information would be helpful.
+**Your Role:**
+You guide operators and engineers with clear, actionable solutions to system faults by:
+1. **Diagnosing Precisely:** Analyze technical signals, logs, and fault descriptions to determine the most likely root cause.
+2. **Resolving Intelligently:** Recommend corrective actions that have been proven effective in resolving similar issues in the past.
+3. **Synthesizing, Not Stating:** Construct comprehensive answers by connecting technical indicators, patterns, and operational behaviors.
+4. **Acting as the Expert:** Speak with authority, as though the insights are drawn from firsthand expertise and deep system understanding.
+
+**Response Guidelines:**
+- Never refer to the source or origin of your information. Do not mention "context", "retrieved data", or anything similar.
+- If information is insufficient to identify a cause or recommend a solution, state that clearly and specify what additional data would be useful.
+- Prioritize operational clarity. Each response should aim to assist the operator or engineer in resolving the issue quickly and safely.
 """)
-                
                 messages.append({"role": "system", "content": system_prompt})
                 
                 # Add the user's question with context
-                user_content_with_context = f"Use the following technical data to answer the user's question.\n\nTechnical Data:\n{context}\n\nUser Question:\n{user_message}"
+                user_content_with_context = f"Use the following past fault related historical data to answer the user's question.\n\Historical Data:\n{context}\n\nUser Question:\n{rewritten_user_message}"
                 messages.append({"role": "user", "content": user_content_with_context})
                 
-                logger.info(f"Using RAG-based prompt for FAULT_INFO. Context Retrieved: {context}")
+                logger.info(f"Using RAG-based prompt for FAULT_INFO. Context Retrieved.")
 
             except Exception as e:
                 logger.error(f"Error retrieving from FAULT_INFO collection: {e}")
@@ -287,21 +489,32 @@ You are a specialized AI assistant for the Accelerator Control System, with deep
 
         elif intent == config.CLASS_LABELS[2]:
             try:
-                context, unique_sources = rag_obj.retrieve_from_collection(config.DOMAININFO_COLLECTION, user_message)
-                system_prompt = "You are a helpful assistant. Use the provided context to answer the question."
+                yield f"data: {json.dumps({'pipeline_step': 'Searching Domain-Info knowledge base...'})}\n\n"
+                context, unique_sources = rag_obj.retrieve_from_collection(config.DOMAININFO_COLLECTION, rewritten_user_message)
+                system_prompt = dedent("""
+You are a helpful modern AI assistant chatbot.
+                                       
+**Your Role:**
+You answer the user queries based on the context provided below:
+
+**Response Guidelines:**
+- Never refer to the source or origin of your information. Do not mention "context", "retrieved data", "based on information provided" or anything similar.
+- If information is insufficient to answer, state that clearly and specify what additional data would be useful.                   
+""")
+
                 messages.append({"role": "system", "content": system_prompt})
                 # Add the user's question with context
-                user_content_with_context = f"Context:\n{context}\n\nQuestion:\n{user_message}"
+                user_content_with_context = f"Context:\n{context}\n\nQuestion:\n{rewritten_user_message}"
                 messages.append({"role": "user", "content": user_content_with_context})
                 logger.info("Using RAG-based prompt for DOMAININFO.")
 
             except Exception as e:
                 logger.error(f"Error retrieving from DOMAININFO collection: {e}")
                 # Fallback to general model if retrieval fails
-                messages.append({"role": "user", "content": user_message})
+                messages.append({"role": "user", "content": rewritten_user_message})
         
         else: # General chat, no specific intent or RAG
-            messages.append({"role": "user", "content": user_message})
+            messages.append({"role": "user", "content": rewritten_user_message})
 
         # 4. Stream the LLM response
         try:
@@ -332,81 +545,18 @@ You are a specialized AI assistant for the Accelerator Control System, with deep
         # 5. Send sources at the end if they exist
         sources_data = {}
         if unique_sources:
-            sources_data = {"sources": [f"Source [{i+1}]: {src}" for i, src in enumerate(unique_sources)]}
+            sources_data = {"sources": [f"{i+1}. {src}" for i, src in enumerate(unique_sources)]}
             yield f"data: {json.dumps(sources_data)}\n\n"
 
-        sources_data_json = json.dumps(sources_data)
-        connection = engine.connect()
-        row = connection.execute(text("SELECT MAX(turn_number) from messages where session_id = :session_id"), {"session_id": session_id}).fetchone()
-        connection.close()
-        
-        current_turn_val = row[0] if row and row[0] is not None else 0
-        next_turn = current_turn_val + 1
-
-        timestamp = datetime.now()
-        classified_intent = intent_result["classified_intent"]
-        mistral_intent = intent_result["mistral_intent"]
-        tinyllama_intent = intent_result["tinyllama_intent"]
-        bert_intent = intent_result["bert_intent"]
-        generated_sql = sql_query_to_send if sql_query_to_send else None
-        rag_chunks = context if context else None
-        connection = engine.connect()
-
-        insert_sql = text("""
-    INSERT INTO messages (
-        session_id,
-        turn_number,
-        timestamp,
-        user_prompt,
-        classified_intent,
-        mistral_intent,
-        tinyllama_intent,
-        bert_intent,
-        chatbot_response,
-        generated_sql,
-        unique_sources,
-        rag_chunks
-    )
-    VALUES (
-        :session_id,
-        :turn_number,
-        :timestamp,
-        :user_prompt,
-        :classified_intent,
-        :mistral_intent,
-        :tinyllama_intent,
-        :bert_intent,
-        :chatbot_response,
-        :generated_sql,
-        :unique_sources,
-        :rag_chunks
-    )
-""")
-        try:
-            connection.execute(insert_sql, {
-                "session_id": session_id,
-                "turn_number": next_turn,
-                "timestamp": timestamp,
-                "user_prompt": user_message,
-                "classified_intent": classified_intent,
-                "mistral_intent": mistral_intent,
-                "tinyllama_intent": tinyllama_intent,
-                "bert_intent": bert_intent,
-                "chatbot_response": chatbot_response,
-                "generated_sql": generated_sql,
-                "unique_sources": sources_data_json,
-                "rag_chunks": rag_chunks
-            })
-            connection.commit()
-        except Exception as e:
-            logger.info(f"Error executing query: {e}")
-        finally:
-            connection.close()
-
+        store_chats_in_db(session_id, user_message, rewritten_user_message, intent_result, chatbot_response, sql_query_to_send, context, sources_data)
         # Signal completion
         yield f"data: {json.dumps({'status': 'DONE'})}\n\n"
 
-    return Response(generate_response(), mimetype='text/event-stream')
+    return Response(generate_response(session_id, conversation_history), mimetype='text/event-stream')
+
+@app.route('/suggestions')
+def suggestions():
+    return send_file(r'C:\Users\admin\Documents\chatbot\app\frontend\static\data\suggestions.json', as_attachment=True)
 
 @app.route('/start_session')
 def start_session():
