@@ -234,8 +234,8 @@ conda activate gpt_env_311
 ### Set Proxy
 
 ```bash
-export http_proxy="http://cdtrainee:Indore%40234%23@10.31.31.10:5128"
-export https_proxy="http://cdtrainee:Indore%40234%23@10.31.31.10:5128"
+export http_proxy="http://username:password@10.31.31.10:5128"
+export https_proxy="http://username:password@10.31.31.10:5128"
 ```
 
 ### Uninstall All Packages
@@ -530,8 +530,8 @@ ollama show phi3
 ### Windows Proxy (PowerShell)
 
 ```powershell
-$env:HTTP_PROXY  = "http://cdtrainee:Indore%40234%23@10.31.31.10:5128"
-$env:HTTPS_PROXY = "http://cdtrainee:Indore%40234%23@10.31.31.10:5128"
+$env:HTTP_PROXY  = "http://username:password@10.31.31.10:5128"
+$env:HTTPS_PROXY = "http://username:password@10.31.31.10:5128"
 ```
 
 > **Note:** `ping` uses ICMP, which is often blocked by corporate firewalls. Git, curl, and web browsers use HTTP/HTTPS, which are typically allowed through the proxy.
@@ -639,5 +639,5 @@ git config --global user.email "sultan-rrcat@gmail.com"
 ### Cleanup Checklist (Before Leaving)
 
 - Remove Chrome profile
-- Remove `cdtrainee` credential from Windows Credential Manager
+- Remove `username` credential from Windows Credential Manager
 - Remove GitHub authorisation from Git (or uninstall Git)
