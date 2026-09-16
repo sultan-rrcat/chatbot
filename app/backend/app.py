@@ -12,10 +12,15 @@ from intent_classifier import IntentClassifier
 from rag_setup import RagSetup
 
 # --- Flask App Initialization ---
+# Museum fix: original used absolute
+#   static_folder=r"C:\Users\offic\Documents\chatbot\app_home\frontend\static",
+#   template_folder=r'C:\Users\offic\Documents\chatbot\app_home\frontend\templates',
+# now relative to app/ so the single folder is portable (not expected to run).
+_HERE = os.path.dirname(os.path.abspath(__file__))
 app = Flask(
     __name__,
-    static_folder=r"C:\Users\offic\Documents\chatbot\app_home\frontend\static",
-    template_folder=r'C:\Users\offic\Documents\chatbot\app_home\frontend\templates',
+    static_folder=os.path.join(_HERE, "..", "frontend", "static"),
+    template_folder=os.path.join(_HERE, "..", "frontend", "templates"),
 )
 
 # --- Logging Setup ---

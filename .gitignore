@@ -1,21 +1,38 @@
-models
-venv_310
-data
-chroma_db 
-others
-app/frontend/static/fonts
-app/backend/chroma_db
-app/backend/rag_data
-app/backend/__pycache__
-app/backend/logs
-app_kshitij/backend/chroma_db/
-app_kshitij/backend/data/
-app_kshitij/frontend/static/fonts
-app_rag/backend/__pycache__
-app_rag/backend/new_rag_data
-app_rag/backend/chroma_db
-app_home/backend/rag_data
-app_home/backend/chroma_db
-app_home/backend/logs
-app_home/frontend/static/fonts
-app_home/frontend/static/css/fonts
+# Single app/ museum (merged from app_home + app_kshitij + app_rag).
+# Legacy per-app entries below are kept as comments for provenance.
+models/
+venv_310/
+data/
+chroma_db/
+others/
+app/models/
+app/backend/chroma_db/
+app/backend/chroma_db_kshitij/
+app/backend/rag_data/
+app/backend/new_rag_data/
+app/backend/logs/
+app/backend/__pycache__/
+app/frontend/static/fonts/
+app/frontend/static/css/fonts/
+# Legacy (pre-merge):
+# app/frontend/static/fonts
+# app/backend/chroma_db
+# app/backend/rag_data
+# app/backend/__pycache__
+# app/backend/logs
+# app_kshitij/backend/chroma_db/
+# app_kshitij/backend/data/
+# app_kshitij/frontend/static/fonts
+# app_rag/backend/__pycache__
+# app_rag/backend/new_rag_data
+# app_rag/backend/chroma_db
+# app_home/backend/rag_data
+# app_home/backend/chroma_db
+# app_home/backend/logs
+# app_home/frontend/static/fonts
+# app_home/frontend/static/css/fonts
+# Generated / notebook artifacts (deduplicated, see app/docs/provenance.md)
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.env

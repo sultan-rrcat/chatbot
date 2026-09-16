@@ -1,0 +1,22 @@
+# Reconstructed dependency set for the single app/ museum (learning record).
+# No requirements.txt existed in app_home / app_kshitij / app_rag.
+# Inferred from imports across backend files. Not installed / not expected to run.
+# Pin versions loosely; original envs: Python 3.10 (pyc), 3.11 (gpt_env_311), 3.12 (env_312).
+
+flask
+llama-cpp-python
+torch
+transformers
+sentence-transformers
+chromadb
+langchain-core
+langchain-community
+langchain-huggingface
+langchain-chroma
+langchain-text-splitters
+pypdf
+pandas
+sqlalchemy
+pyodbc
+nltk
+jupyter  # only used for .ipynb_checkpoints editing artifacts
